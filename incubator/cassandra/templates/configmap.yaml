@@ -10,5 +10,8 @@ metadata:
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 data:
-{{ toYaml .Values.configOverrides | indent 2 }}
+{{- range .Values.configOverrides }}
+  {{ . }}: |
+{{ $.Files.Get (printf "%s%s" "configs/" .) | indent 4 }}
+{{- end }}
 {{- end }}

@@ -74,7 +74,8 @@ config:
     # agent: 61621
 
 ## Cassandra config files overrides
-configOverrides: {}
+configOverrides:
+  - cassandra.yaml
 
 ## Cassandra docker command overrides
 commandOverrides: []

@@ -22,6 +22,14 @@ spec:
       labels:
         app: {{ template "cassandra.name" . }}
         release: {{ .Release.Name }}
+{{- if .Values.configOverrides }}
+      annotations:
+{{- $SUM := "" }}
+{{- range .Values.configOverrides }}
+{{- $SUM = $.Files.Get (print "configs/" .) | sha256sum | print $SUM }}
+{{- end }}
+       checksum/config: {{ $SUM | sha256sum }}
+{{- end }}
 {{- if .Values.podLabels }}
 {{ toYaml .Values.podLabels | indent 8 }}
 {{- end }}
@@ -52,15 +60,12 @@ spec:
 {{- end }}
 {{- if .Values.configOverrides }}
       initContainers:
-      - name: config-copier
+      - name: config-chown
         image: busybox
-        command: [ 'sh', '-c', 'cp /configmap-files/* /cassandra-configs/ && chown 999:999 /cassandra-configs/*']
+        command: [ 'sh', '-c', 'cp /cassandra-config-overrides/* /cassandra-configs/ && chown 999:999 /cassandra-configs/*']
         volumeMounts:
-{{- range $key, $value := .Values.configOverrides }}
-        - name: cassandra-config-{{ $key | replace "." "-" | replace "_" "--" }}
-          mountPath: /configmap-files/{{ $key }}
-          subPath: {{ $key }}
-{{- end }}
+        - name: cassandra-config-overrides
+          mountPath: /cassandra-config-overrides
         - name: cassandra-configs
           mountPath: /cassandra-configs/
 {{- end }}
@@ -167,10 +172,13 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /var/lib/cassandra
-        {{- if .Values.configOverrides }}
+{{- if .Values.configOverrides }}
+{{- range .Values.configOverrides }}
         - name: cassandra-configs
-          mountPath: /etc/cassandra
-        {{- end }}
+          mountPath: /etc/cassandra/{{ . }}
+          subPath: {{ . }}
+{{- end }}
+{{- end }}
         {{- if not .Values.persistence.enabled }}
         lifecycle:
           preStop:
@@ -185,12 +193,10 @@ spec:
 {{- if or .Values.configOverrides (not .Values.persistence.enabled) }}
       volumes:
 {{- end }}
-{{- range $key, $value := .Values.configOverrides }}
+{{- if .Values.configOverrides }}
       - configMap:
           name: cassandra
-        name: cassandra-config-{{ $key | replace "." "-" | replace "_" "--" }}
-{{- end }}
-{{- if .Values.configOverrides }}
+        name: cassandra-config-overrides
       - name: cassandra-configs
         emptyDir: {}
 {{- end }}
